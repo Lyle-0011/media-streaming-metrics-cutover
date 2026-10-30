@@ -1,0 +1,17 @@
+{
+  "name": "media-streaming-metrics-cutover",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --experimental-strip-types src/streaming_metrics.ts",
+    "test": "node --experimental-strip-types src/streaming_metrics.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.8.0"
+  }
+}
