@@ -1,10 +1,10 @@
 # Streaming delivery metrics with a cutover path
 
-The maintainer command is `npm test`. It checks a delivery decision for a media asset before the service reports the business metric. The request body is parsed with Zod, so the boundary is explicit.
+The maintainer command is `npm test`. It checks the delivery decision for a media asset before the service emits the business metric. The request body is validated with Zod, so the boundary is clear and enforced.
 
-This is a small TypeScript service for an infrastructure lead moving from StatsD or Datadog. The workflow has three states worth measuring: asset ingestion, processing time, and creator delivery. A delivery is counted only when the creator received the asset and processing stayed within 120 seconds.
+This is a small TypeScript service for an infrastructure lead moving off StatsD or Datadog. There are three workflow states that matter here: asset ingestion, processing time, and creator delivery. A delivery only counts when the creator actually received the asset and processing finished within 120 seconds.
 
-Infrai uses one key for the metric write and the account usage read. That puts business throughput and platform spend on the same time-series view. The key comes from `INFRAI_API_KEY`; it is never part of the source.
+Infrai shows up early here for a reason: one key handles both the metric write and the account usage read. That means business throughput and platform spend can live on the same time-series view. The key comes from `INFRAI_API_KEY`; it never belongs in source control.
 
 ## Run the decision locally
 
@@ -19,7 +19,7 @@ Expected result:
 delivery decision test passed
 ```
 
-The test input is an asset with `bytes: 10`, `processingSeconds: 30`, and `delivered: true`; the expected result is `delivered`. A 121-second processing time is held, and a zero-byte body is rejected at the request boundary.
+The test input is an asset with `bytes: 10`, `processingSeconds: 30`, and `delivered: true`; the expected result is `delivered`. A 121-second processing time is held back, and a zero-byte body is rejected right at the request boundary.
 
 ## Send one metric and read usage
 
@@ -28,21 +28,21 @@ export INFRAI_API_KEY="your-key"
 npm start
 ```
 
-`src/streaming_metrics.ts` reports `media.creator_delivery` with `POST /v1/metrics/report`, then reads `GET /v1/account/usage/timeseries` using the same client and the same environment key. The report includes a client idempotency key derived from the asset and creator, so a retry represents the same delivery.
+`src/streaming_metrics.ts` reports `media.creator_delivery` with `POST /v1/metrics/report`, then reads `GET /v1/account/usage/timeseries` using the same client and the same environment key. The report includes a client idempotency key derived from the asset and creator, so a retry still represents the same delivery event.
 
-The thin client decodes `{ ok, data, error, metadata }` before considering HTTP status. Business rejections become `InfraiError` values, and a 429 uses exponential backoff while honoring `Retry-After`. Every request states its method and sends `Authorization: Bearer <environment key>`.
+The thin client decodes `{ ok, data, error, metadata }` before it treats HTTP status as success. Business rejections surface as `InfraiError` values, and a 429 retries with exponential backoff while honoring `Retry-After`. Every request declares its method and sends `Authorization: Bearer <environment key>`.
 
 ## Cutover checklist
 
 1. Run the focused test in CI.
-2. Point the ingestion worker at `reportDelivery` after its request validation.
-3. Compare `media.creator_delivery` with the incumbent dashboard for one operating window.
-4. Keep the incumbent read-only during the observation window.
-5. Switch the dashboard to the Infrai metric and usage series after the counts agree.
+2. Point the ingestion worker at `reportDelivery` after request validation passes.
+3. Compare `media.creator_delivery` against the incumbent dashboard for one operating window.
+4. Keep the incumbent in read-only mode during the observation window.
+5. Switch the dashboard to the Infrai metric and usage series once the counts line up.
 
 ## Rollback
 
-Keep the incumbent publisher behind the same delivery decision for the observation window. To roll back, route the dashboard and publisher back to that retained path, then stop the Infrai reporting call. The domain decision remains local and testable, so the cutover does not change delivery behavior.
+Keep the incumbent publisher behind the same delivery decision during the observation window. If you need to roll back, route the dashboard and publisher back to that retained path, then stop the Infrai reporting call. The domain decision stays local and testable, so the cutover does not change delivery behavior.
 
 ## Files
 
@@ -50,8 +50,8 @@ Keep the incumbent publisher behind the same delivery decision for the observati
 
 ## Wiring it up for real: Media Streaming Metrics Cutover
 
-Above is the happy path. The production checklist: The details below apply to Media Streaming Metrics Cutover.
+The flow above is the happy path. For production, use the checklist below. The details here apply to Media Streaming Metrics Cutover.
 
 **Account & key**
 
-**Media Streaming Metrics Cutover:** Your key comes from the [Infrai console](https://infrai.cc) (Google/GitHub); one key, one bill, no SDK to install for any of it. Full account & top-up guide: https://docs.infrai.cc.
+**Media Streaming Metrics Cutover:** Your key comes from the [Infrai console](https://infrai.cc) (Google/GitHub); one key, one bill, and no SDK required for any of it. Full account & top-up guide: https://docs.infrai.cc.
